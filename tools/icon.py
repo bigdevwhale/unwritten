@@ -47,3 +47,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def logo(path="docs/logo.png", size=512):
+    """The icon drawn to a PNG for the README and the site, from the same shapes."""
+    import re
+    from PIL import Image, ImageDraw
+    k = size / 108
+    im = Image.new("RGBA", (size, size), "#33261B")
+    glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse([20 * k, 20 * k, 88 * k, 88 * k], fill=(243, 199, 122, 38))
+    im.alpha_composite(glow)
+    d = ImageDraw.Draw(im)
+    d.rectangle([35 * k, 28 * k, 73 * k, 82 * k], fill="#4B5E3A")
+    d.rectangle([35 * k, 28 * k, 38 * k, 82 * k], fill="#3A4A2E")
+    d.rectangle([39 * k, 32 * k, 69 * k, 78 * k], outline="#E8DDB0", width=max(1, round(1.2 * k)))
+    d.rectangle([41 * k, 34 * k, 67 * k, 76 * k], outline="#E8DDB0", width=max(1, round(.5 * k)))
+    d.rectangle([45 * k, 42 * k, 63 * k, 44.2 * k], fill="#E8DDB0")
+    d.rectangle([47 * k, 46.5 * k, 61 * k, 48.1 * k], fill="#E8DDB0")
+    pts = [tuple(float(v) * k for v in p.split(",")) for p in re.findall(r"[\d.]+,[\d.]+", star(54, 63, 5, 2.1))]
+    d.polygon(pts, fill="#E8DDB0")
+    d.polygon([(63 * k, 82 * k), (63 * k, 91 * k), (65.5 * k, 88.5 * k), (68 * k, 91 * k), (68 * k, 82 * k)], fill="#B5502F")
+    out = Path(__file__).resolve().parent.parent / path
+    out.parent.mkdir(parents=True, exist_ok=True)
+    im.convert("RGB").save(out, optimize=True)
+
+
+if __name__ == "__main__" and "--logo" in __import__("sys").argv:
+    logo()

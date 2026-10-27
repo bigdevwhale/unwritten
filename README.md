@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.png" width="96" alt="Unwritten logo" />
+
 # Unwritten
 
 ### A bookshop of books that don't exist
