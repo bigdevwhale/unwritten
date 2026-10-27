@@ -1,6 +1,18 @@
 package app.unwritten.ui.book
 
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,101 +88,110 @@ fun BookSheet(h: Home, nav: Nav, id: Long, start: Page) {
     val b = h.shop.book(id) ?: run { nav.pop(); return }
     LaunchedEffect(id) { c.repo.open(id) }
     var page by rememberSaveable(id) { mutableStateOf(start) }
+    val reviews = h.shop.reviews(b.id)
 
-    Sheet(w.kind(b.kind) + " · " + w.pages(b.pages), { nav.pop() }, w.t("На полку", "Back")) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            for ((p, label) in listOf(Page.COVER to w.t("Обложка", "Cover"), Page.BACK to w.t("Оборот", "Back"), Page.OPEN to w.t("Открыть", "Open"), Page.CARD to w.t("Формуляр", "Card"))) {
+    Sheet(w.kind(b.kind) + " · " + w.pages(b.pages), { nav.pop() }, w.t("На полку", "Back"), scroll = false) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+            val tabs = listOf(
+                Page.COVER to w.t("Обложка", "Cover"), Page.BACK to w.t("Оборот", "Back"), Page.OPEN to w.t("Внутри", "Inside"),
+                Page.CARD to w.t("Формуляр", "Card"), Page.REVIEWS to w.t("Критика", "Critics") + if (reviews.isNotEmpty()) " ${reviews.size}" else "",
+            )
+            for ((p, label) in tabs) {
                 val on = p == page
                 Text(
-                    label, style = T.Italic.copy(color = if (on) C.ink else C.muted, fontSize = 15.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal),
-                    modifier = Modifier.clickable { page = p }.drawBehind { if (on) drawRect(C.accent, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) }.padding(horizontal = 6.dp, vertical = 6.dp),
+                    label, maxLines = 1, style = T.Italic.copy(color = if (on) C.ink else C.muted, fontSize = 12.5.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center),
+                    modifier = Modifier.weight(1f).clickable { page = p }.drawBehind { if (on) drawRect(C.accent, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) }.padding(vertical = 6.dp),
                 )
             }
         }
-        when (page) {
-            Page.COVER -> CoverPage(h, nav, b)
-            Page.BACK -> BackPage(h, b)
-            Page.OPEN -> OpenPages(h, b)
-            Page.CARD -> CardPage(h, b)
-        }
-
-        for (r in h.shop.reviews(b.id)) {
-            Column(Modifier.padding(top = 14.dp).fillMaxWidth().shadow(3.dp).background(C.paperLight).padding(14.dp)) {
-                Text(buildAnnotatedString {
-                    append(w.critics[r.critic % w.critics.size])
-                    append("  ")
-                    withStyle(SpanStyle(color = C.accent)) { append("★".repeat(r.stars) + "☆".repeat(5 - r.stars)) }
-                }, style = T.Small.copy(fontSize = 12.sp))
-                Text(w.review(r.template, b.title, b.author, b.kind), style = T.Body.copy(fontSize = 15.sp, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp))
+        Column(Modifier.weight(1f).fillMaxWidth()) {
+            when (page) {
+                Page.COVER -> CoverPage(h, nav, b)
+                Page.BACK -> BackPage(h, b)
+                Page.OPEN -> OpenPages(h, b)
+                Page.CARD -> CardPage(h, b)
+                Page.REVIEWS -> Reviews(h, b)
             }
         }
 
-        Gap(18)
-        Flow(Modifier.fillMaxWidth(), gap = 8.dp) {
-            Btn(w.t("Позвать критика", "Call a critic")) {
-                c.write {
-                    val r = repo.review(b.id) { used, seed ->
-                        val free = (0 until w.reviewCount).filter { it !in used }
-                        if (free.isEmpty()) null else Math.floorMod(seed / 3, w.critics.size.toLong()).toInt() to free[Math.floorMod(seed, free.size.toLong()).toInt()]
+        // The actions stay at the foot of the sheet, two by two.
+        Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn(w.t("Позвать критика", "Call a critic"), Modifier.weight(1f)) {
+                    page = Page.REVIEWS
+                    c.write {
+                        val r = repo.review(b.id) { used, seed ->
+                            val free = (0 until w.reviewCount).filter { it !in used }
+                            if (free.isEmpty()) null else Math.floorMod(seed / 3, w.critics.size.toLong()).toInt() to free[Math.floorMod(seed, free.size.toLong()).toInt()]
+                        }
+                        if (r == null) toast.show(w.t("Критики на сегодня всё сказали. Завтра придут ещё.", "The critics have said their piece today. More tomorrow."))
                     }
-                    if (r == null) toast.show(w.t("Критики на сегодня всё сказали. Завтра придут ещё.", "The critics have said their piece today. More tomorrow."))
+                }
+                Btn(w.t("Напечатать зин", "Print a zine"), Modifier.weight(1f), kind = Kind.GHOST) {
+                    c.write { Zine.share(ctx, b, w, h.imprint) }
                 }
             }
-            Btn(w.t("Напечатать зин", "Print a zine"), kind = Kind.GHOST) {
-                c.write { Zine.share(ctx, b, w, h.imprint) }
-            }
-            if (h.today - b.day(h.zone) >= Rules.EDITION_AFTER_DAYS && !b.bargain) {
-                Btn(w.t("Новое издание", "New edition"), kind = Kind.GHOST) { nav.push(Overlay.Reissue(b.id)) }
-            }
-            Btn(if (b.bargain) w.t("Вернуть на полку", "Back on the shelf") else w.t("В уценку", "To the bargain box"), kind = Kind.GHOST) {
-                c.write { repo.bargain(b.id, !b.bargain) }
-                nav.pop()
-                toast.show(if (b.bargain) w.t("Снова на полке.", "Back on the shelf.") else w.t("Ушла в уценку. Кто-нибудь найдёт.", "Into the bargain box. Someone will find it."))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (h.today - b.day(h.zone) >= Rules.EDITION_AFTER_DAYS && !b.bargain) {
+                    Btn(w.t("Новое издание", "New edition"), Modifier.weight(1f), kind = Kind.GHOST) { nav.push(Overlay.Reissue(b.id)) }
+                }
+                Btn(if (b.bargain) w.t("Вернуть на полку", "Back on the shelf") else w.t("В уценку", "To the bargain box"), Modifier.weight(1f), kind = Kind.GHOST) {
+                    c.write { repo.bargain(b.id, !b.bargain) }
+                    nav.pop()
+                    toast.show(if (b.bargain) w.t("Снова на полке.", "Back on the shelf.") else w.t("Ушла в уценку. Кто-нибудь найдёт.", "Into the bargain box. Someone will find it."))
+                }
             }
         }
-        Gap(28)
+    }
+}
+
+/** A cover as large as the room left for it allows. */
+@Composable
+private fun ColumnScope.BigCover(h: Home, b: Book, share: Float) {
+    BoxWithConstraints(Modifier.fillMaxWidth().weight(share), contentAlignment = Alignment.Center) {
+        val width = minOf(maxWidth * .7f, maxHeight * (2f / 3f) - 4.dp)
+        Box(Modifier.width(width).shadow(12.dp)) { Cover(Face(b), h.w, h.imprint, Modifier.fillMaxWidth()) }
     }
 }
 
 @Composable
-private fun CoverPage(h: Home, nav: Nav, b: Book) {
+private fun ColumnScope.CoverPage(h: Home, nav: Nav, b: Book) {
     val w = h.w
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(Modifier.width(220.dp).shadow(12.dp)) { Cover(Face(b), w, h.imprint, Modifier.fillMaxWidth()) }
-    }
+    BigCover(h, b, 1f)
     if (b.note.isNotEmpty()) {
-        Text(w.t("по заказу:", "found for:"), style = T.Label, modifier = Modifier.padding(top = 18.dp))
-        Text("«${b.note}»", style = T.Note.copy(fontSize = 21.sp, lineHeight = 23.sp))
-        if (b.visitor in w.visitors.indices) Text("— ${w.visitors[b.visitor]}", style = T.Small)
-    }
-    val ref = h.shop.book(b.refId)
-    val cited = h.shop.citedBy(b.id)
-    if (ref != null || cited.isNotEmpty()) {
-        Text(w.t("см. также:", "see also:"), style = T.Label, modifier = Modifier.padding(top = 14.dp))
-        for (o in listOfNotNull(ref) + cited) {
-            Text("«${o.title}»" + (if (o.author.isNotBlank()) ", ${o.author}" else ""), style = T.Italic.copy(color = C.accent),
-                modifier = Modifier.clickable { nav.pop(); nav.push(Overlay.Book(o.id)) }.padding(vertical = 3.dp))
+        Text("«${b.note}»", style = T.Note.copy(fontSize = 19.sp, lineHeight = 21.sp), maxLines = 3, modifier = Modifier.padding(top = 10.dp))
+        if (b.visitor in w.visitors.indices) Text("— ${w.visitors[b.visitor]}" + (if (b.edition > 1) " · ${w.edition(b.edition).lowercase()}" else ""), style = T.Small.copy(fontSize = 12.5.sp))
+    } else if (b.edition > 1) Text(w.edition(b.edition), style = T.Small, modifier = Modifier.padding(top = 8.dp))
+    val links = listOfNotNull(h.shop.book(b.refId)) + h.shop.citedBy(b.id)
+    if (links.isNotEmpty()) {
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+            Text(w.t("см. также: ", "see also: "), style = T.Label)
+            for (o in links) Text("«${o.title}»  ", style = T.Italic.copy(color = C.accent, fontSize = 15.sp), maxLines = 1,
+                modifier = Modifier.clickable { nav.pop(); nav.push(Overlay.Book(o.id)) })
         }
     }
-    if (b.edition > 1) Text(w.edition(b.edition), style = T.Small, modifier = Modifier.padding(top = 10.dp))
 }
 
 @Composable
-private fun BackPage(h: Home, b: Book) {
+private fun ColumnScope.BackPage(h: Home, b: Book) {
     val w = h.w
     val f = Face(b)
     val tint = Color.hsl(f.hue, .25f, .88f)
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(240.dp).aspectRatio(2f / 3f).shadow(12.dp).background(tint).padding(22.dp)) {
-            Text(b.blurb, style = T.Body.copy(fontSize = 14.sp, lineHeight = 20.sp))
+    BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+        val width = minOf(maxWidth * .82f, maxHeight * (2f / 3f) - 4.dp)
+        Column(Modifier.width(width).aspectRatio(2f / 3f).shadow(12.dp).background(tint).padding(18.dp)) {
+            BasicText(
+                b.blurb, style = T.Body.copy(fontSize = 14.sp, lineHeight = 20.sp), modifier = Modifier.weight(1f, fill = false),
+                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = .5.sp),
+            )
             Text(
                 "${b.author.ifBlank { w.t("Автор неизвестен", "Author unknown") }}. ${b.title}. — ${w.t("Изд-во", "")} «${w.imprint(h.imprint)}», ${1951 + f.seed % 40}. — ${b.pages} ${w.t("с.", "pp.")}",
-                style = T.Small.copy(fontSize = 10.5.sp, lineHeight = 14.sp), modifier = Modifier.padding(top = 10.dp),
+                style = T.Small.copy(fontSize = 10.sp, lineHeight = 13.sp), maxLines = 3, modifier = Modifier.padding(top = 8.dp),
             )
-            Box(Modifier.weight(1f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Spacer(Modifier.weight(.001f))
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Canvas(Modifier.size(70.dp, 26.dp).background(Color.White).padding(3.dp)) {
+                    Canvas(Modifier.size(70.dp, 24.dp).background(Color.White).padding(3.dp)) {
                         val code = hash(b.title + b.id)
                         var x = 0f; var i = 0
                         while (x < size.width) {
@@ -186,64 +207,99 @@ private fun BackPage(h: Home, b: Book) {
     }
 }
 
-/** A page of the book itself: cream, a page number at the foot. */
+/** A page of the book itself: cream, a page number at the foot. Fills the room; a long page scrolls inside itself. */
 @Composable
-private fun BookPage(num: String?, content: @Composable ColumnScope.() -> Unit) {
+private fun BookPage(num: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.padding(bottom = 14.dp).fillMaxWidth().shadow(4.dp).paper(C.paperLight).drawBehind {
+        modifier.fillMaxSize().shadow(4.dp).paper(C.paperLight).drawBehind {
             drawRect(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .07f), Color.Transparent), 0f, 20.dp.toPx()))
-        }.padding(start = 24.dp, end = 22.dp, top = 24.dp, bottom = 12.dp),
+        }.padding(start = 24.dp, end = 22.dp, top = 22.dp, bottom = 10.dp),
     ) {
-        content()
-        if (num != null) Text(num, style = T.Small.copy(fontSize = 11.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, content = content)
+        if (num != null) Text(num, style = T.Small.copy(fontSize = 11.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    }
+}
+
+/** The inside of the book, one page at a time: swipe or tap the arrows to turn. */
+@Composable
+private fun ColumnScope.OpenPages(h: Home, b: Book) {
+    val c = LocalContext.current.container
+    val w = h.w
+    val pages = buildList<Pair<String?, @Composable ColumnScope.() -> Unit>> {
+        if (b.edition > 1 && b.preface.isNotBlank()) add("v" to {
+            Text(w.t("Предисловие к изданию", "Preface to the edition").uppercase(), style = T.Small.copy(fontSize = 10.sp, letterSpacing = 2.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
+            Text(b.preface, style = T.Body)
+        })
+        if (b.first.isNotBlank() || b.epigraph.isNotBlank()) add("7" to {
+            if (b.epigraph.isNotBlank()) Text(b.epigraph, style = T.Italic.copy(fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.End), modifier = Modifier.padding(start = 44.dp, bottom = 22.dp).fillMaxWidth())
+            if (b.first.isNotBlank()) Text(buildAnnotatedString {
+                withStyle(SpanStyle(fontSize = 44.sp, color = C.accent)) { append(b.first.take(1)) }
+                append(b.first.drop(1))
+            }, style = T.Body.copy(fontSize = 17.sp, lineHeight = 26.sp))
+        })
+        if (b.chapters.isNotEmpty()) add(null to {
+            Text(w.t("Содержание", "Contents").uppercase(), style = T.Small.copy(fontSize = 10.sp, letterSpacing = 2.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
+            val n = b.chapters.size
+            b.chapters.forEachIndexed { i, ch ->
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(vertical = 2.dp)) {
+                    Text(ch, style = T.Body.copy(fontSize = 15.sp), modifier = Modifier.widthIn(max = 230.dp))
+                    Box(Modifier.weight(1f).height(1.dp).padding(horizontal = 4.dp).drawBehind {
+                        var x = 0f
+                        while (x < size.width) { drawCircle(C.muted, .8.dp.toPx(), Offset(x, 0f)); x += 4.dp.toPx() }
+                    })
+                    Text("${7 + i * b.pages / n}", style = T.Body.copy(fontSize = 15.sp))
+                }
+            }
+        })
+        if (b.middle.isNotBlank()) add("${b.pages / 2}" to {
+            Text(b.middle, style = T.Body.copy(fontSize = 15.sp, lineHeight = 23.sp))
+            if (b.margin.isNotBlank()) Text(b.margin, style = T.Pencil, modifier = Modifier.padding(top = 12.dp).rotate(-1f))
+        })
+        if (b.last.isNotBlank()) add("${b.pages}" to {
+            Text(b.last, style = T.Italic.copy(textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth())
+            Text("❦", style = T.Heading.copy(color = C.accent, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        })
+        // The flyleaf, where a reader leaves pencil.
+        add(null to {
+            var note by remember(b.id) { mutableStateOf(b.margin) }
+            Text(w.t("Пометка на полях — карандашом, как читатель", "A note in the margin, in pencil, as a reader"), style = T.Label)
+            Field(note, { note = it }, w.t("вот тут я заплакал(а), честно", "this is where I cried, honestly"), style = T.Pencil, minLines = 3, max = 400)
+            if (note.trim() != b.margin) Btn(w.t("Оставить пометку", "Leave the note"), Modifier.padding(top = 6.dp), Kind.GHOST) { c.write { repo.margin(b.id, note) } }
+        })
+    }
+    val state = rememberPagerState { pages.size }
+    val scope = rememberCoroutineScope()
+    HorizontalPager(state, Modifier.fillMaxWidth().weight(1f), pageSpacing = 14.dp) { i ->
+        BookPage(pages[i].first, content = pages[i].second)
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("‹", style = T.Heading.copy(color = if (state.currentPage > 0) C.accent else C.line), modifier = Modifier.clickable { scope.launch { state.animateScrollToPage(state.currentPage - 1) } }.padding(horizontal = 18.dp))
+        Text("${state.currentPage + 1} / ${pages.size}", style = T.Small.copy(textAlign = TextAlign.Center), modifier = Modifier.weight(1f))
+        Text("›", style = T.Heading.copy(color = if (state.currentPage < pages.lastIndex) C.accent else C.line), modifier = Modifier.clickable { scope.launch { state.animateScrollToPage(state.currentPage + 1) } }.padding(horizontal = 18.dp))
     }
 }
 
 @Composable
-private fun OpenPages(h: Home, b: Book) {
-    val c = LocalContext.current.container
+private fun ColumnScope.Reviews(h: Home, b: Book) {
     val w = h.w
-    if (b.edition > 1 && b.preface.isNotBlank()) BookPage("v") {
-        Text(w.t("Предисловие к изданию", "Preface to the edition").uppercase(), style = T.Small.copy(fontSize = 10.sp, letterSpacing = 2.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
-        Text(b.preface, style = T.Body)
-    }
-    if (b.first.isNotBlank() || b.epigraph.isNotBlank()) BookPage("7") {
-        if (b.epigraph.isNotBlank()) Text(b.epigraph, style = T.Italic.copy(fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.End), modifier = Modifier.padding(start = 44.dp, bottom = 22.dp).fillMaxWidth())
-        if (b.first.isNotBlank()) Text(buildAnnotatedString {
-            withStyle(SpanStyle(fontSize = 44.sp, color = C.accent)) { append(b.first.take(1)) }
-            append(b.first.drop(1))
-        }, style = T.Body.copy(fontSize = 17.sp, lineHeight = 26.sp))
-    }
-    if (b.chapters.isNotEmpty()) BookPage(null) {
-        Text(w.t("Содержание", "Contents").uppercase(), style = T.Small.copy(fontSize = 10.sp, letterSpacing = 2.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
-        val n = b.chapters.size
-        b.chapters.forEachIndexed { i, ch ->
-            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(vertical = 2.dp)) {
-                Text(ch, style = T.Body.copy(fontSize = 15.sp), modifier = Modifier.widthIn(max = 230.dp))
-                Box(Modifier.weight(1f).height(1.dp).padding(horizontal = 4.dp).drawBehind {
-                    var x = 0f
-                    while (x < size.width) { drawCircle(C.muted, .8.dp.toPx(), Offset(x, 0f)); x += 4.dp.toPx() }
-                })
-                Text("${7 + i * b.pages / n}", style = T.Body.copy(fontSize = 15.sp))
+    val reviews = h.shop.reviews(b.id)
+    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+        if (reviews.isEmpty()) Text(w.t("Критики ещё не заходили. Позови — придут.", "No critic has called yet. Call one."), style = T.Small, modifier = Modifier.padding(top = 20.dp))
+        for (r in reviews) {
+            Column(Modifier.padding(bottom = 10.dp).fillMaxWidth().shadow(3.dp).background(C.paperLight).padding(14.dp)) {
+                Text(buildAnnotatedString {
+                    append(w.critics[r.critic % w.critics.size])
+                    append("  ")
+                    withStyle(SpanStyle(color = C.accent)) { append("★".repeat(r.stars) + "☆".repeat(5 - r.stars)) }
+                }, style = T.Small.copy(fontSize = 12.sp))
+                Text(w.review(r.template, b.title, b.author, b.kind), style = T.Body.copy(fontSize = 15.sp, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp))
             }
         }
     }
-    if (b.middle.isNotBlank()) BookPage("${b.pages / 2}") {
-        Text(b.middle, style = T.Body.copy(fontSize = 15.sp, lineHeight = 23.sp))
-        if (b.margin.isNotBlank()) Text(b.margin, style = T.Pencil, modifier = Modifier.padding(top = 12.dp).rotate(-1f))
-    }
-    if (b.last.isNotBlank()) BookPage("${b.pages}") {
-        Text(b.last, style = T.Italic.copy(textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth())
-        Text("❦", style = T.Heading.copy(color = C.accent, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
-    }
-    var note by remember(b.id) { mutableStateOf(b.margin) }
-    Label(w.t("Пометка на полях — карандашом, как читатель", "A note in the margin, in pencil, as a reader"))
-    Field(note, { note = it }, w.t("вот тут я заплакал(а), честно", "this is where I cried, honestly"), style = T.Pencil, minLines = 2, max = 400)
-    if (note.trim() != b.margin) Btn(w.t("Оставить пометку", "Leave the note"), Modifier.padding(top = 6.dp), Kind.GHOST) { c.write { repo.margin(b.id, note) } }
 }
 
 @Composable
-private fun CardPage(h: Home, b: Book) {
+private fun ColumnScope.CardPage(h: Home, b: Book) {
     val w = h.w
     Column(Modifier.fillMaxWidth().shadow(6.dp).background(Color(0xFFF1E6C9)).padding(16.dp)) {
         Text(w.t("КНИЖНЫЙ ФОРМУЛЯР", "LIBRARY CARD"), style = T.Card.copy(fontWeight = FontWeight.Bold, letterSpacing = 2.sp, textAlign = TextAlign.Center), modifier = Modifier.fillMaxWidth())
@@ -255,7 +311,7 @@ private fun CardPage(h: Home, b: Book) {
             var y = 28.dp.toPx()
             while (y < size.height) { drawLine(Color(0xFFC9B28A), Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += 28.dp.toPx() }
         }.height(maxOf(180, ((b.openDays.size + 3) / 4) * 34 + 30).dp), gap = 8.dp) {
-            for (d in b.openDays) Stamp(LocalDate.ofEpochDay(d), w)
+            for (d in b.openDays.takeLast(18)) Stamp(LocalDate.ofEpochDay(d), w)
         }
     }
     Text(w.t("Штамп ставится в каждый день, когда книгу открывали.", "A stamp for every day the book was opened."), style = T.Small.copy(textAlign = TextAlign.Center, color = C.muted), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))

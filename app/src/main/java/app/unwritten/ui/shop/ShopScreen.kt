@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -90,29 +92,24 @@ import kotlin.math.sin
 @Composable
 fun ShopScreen(h: Home, nav: Nav) {
     val t = rememberSeconds()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    // Everything on one screen: the shelves give and take the height that's left.
+    Column(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 8.dp)) {
         Header(h, nav, t)
-        Shelf(h.w.t("Романы и повести", "Fiction"), h.shop.fiction, 0, h, nav, t)
-        Spacer(Modifier.height(14.dp))
-        Shelf(h.w.t("Справочный отдел", "Reference"), h.shop.reference, 1, h, nav, t)
-        h.returned?.let { Returned(h, nav, it) }
+        Shelf(h.w.t("Романы и повести", "Fiction"), h.w.t("полка ждёт", "the shelf is waiting"), h.shop.fiction, 0, nav, t, Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
+        Shelf(h.w.t("Справочный отдел", "Reference"), h.w.t("полка ждёт", "the shelf is waiting"), h.shop.reference, 1, nav, t, Modifier.weight(1f))
         Counter(h, nav, t)
         Crate(h, nav)
-        Text(
-            h.w.t("На полках ${h.w.books(h.shop.shelved.size)} · ${h.w.pages(h.shop.pages)}, которых нет", "${h.w.books(h.shop.shelved.size)} on the shelves · ${h.w.pages(h.shop.pages)} that don't exist"),
-            style = T.Small.copy(color = C.lampText.copy(alpha = .7f), textAlign = TextAlign.Center),
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 18.dp, bottom = 22.dp, start = 16.dp, end = 16.dp),
-        )
     }
 }
 
 @Composable
 private fun Header(h: Home, nav: Nav, t: State<Float>) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val winH = top + 132.dp
+    val winH = top + 92.dp
     val w = h.w
     val sky = h.sky
-    Box(Modifier.fillMaxWidth().height(winH + 106.dp)) {
+    Box(Modifier.fillMaxWidth().height(winH + 62.dp)) {
         Canvas(Modifier.fillMaxWidth().height(winH)) { drawWindow(sky, t.value) }
         // Light from the window falls into the shop by day; a rosy cast at dawn and dusk.
         Canvas(Modifier.fillMaxSize()) {
@@ -123,10 +120,10 @@ private fun Header(h: Home, nav: Nav, t: State<Float>) {
             }
             if (spill != Color.Transparent) drawRect(Brush.radialGradient(listOf(spill, Color.Transparent), Offset(size.width / 2, winH.toPx()), size.width * .8f), Offset(0f, winH.toPx()), Size(size.width, size.height - winH.toPx()))
             drawMotes(Offset(size.width / 2, winH.toPx() * .55f), t.value, sky.daylight)
-            drawLamp(size.width / 2, 0f, top.toPx() + 50.dp.toPx(), sky.daylight, t.value)
+            drawLamp(size.width / 2, 0f, top.toPx() + 22.dp.toPx(), sky.daylight, t.value)
         }
         // The two corner buttons over the frame: the card catalogue and the settings.
-        Row(Modifier.fillMaxWidth().padding(top = top + 14.dp, start = 18.dp, end = 18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = top + 10.dp, start = 18.dp, end = 18.dp)) {
             IconBtn(onClick = { nav.push(Overlay.Catalog) }) {
                 val s = 1.6.dp.toPx()
                 drawRect(C.lampHi, Offset(size.width * .2f, size.height * .3f), Size(size.width * .6f, size.height * .45f), style = Stroke(s))
@@ -154,16 +151,16 @@ private fun Header(h: Home, nav: Nav, t: State<Float>) {
         }
         Text(
             label, style = T.Small.copy(color = Color(0xFFFFF3DC), fontSize = 11.5.sp, lineHeight = 14.sp),
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = winH - 34.dp, end = 22.dp).clip(RoundedCornerShape(10.dp))
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = winH - 32.dp, end = 22.dp).clip(RoundedCornerShape(10.dp))
                 .background(Color(0x99281A10)).clickable { nav.push(Overlay.Settings) }.padding(horizontal = 9.dp, vertical = 3.dp),
         )
-        Sign(h, Modifier.align(Alignment.TopCenter).padding(top = winH + 16.dp), t)
+        Sign(h, Modifier.align(Alignment.TopCenter).padding(top = winH + 6.dp), t)
     }
 }
 
 @Composable
 private fun IconBtn(onClick: () -> Unit, draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
-    Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0x99281A10)).clickable(onClick = onClick)) {
+    Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0x99281A10)).clickable(onClick = onClick)) {
         Canvas(Modifier.fillMaxSize(), onDraw = draw)
     }
 }
@@ -190,11 +187,11 @@ private fun Sign(h: Home, modifier: Modifier, t: State<Float>) {
                     drawWood(Color(0xFF6E4A2C), Offset.Zero, size, 4)
                     drawRect(Color(0xFF8A603A), style = Stroke(2.dp.toPx()))
                     drawRect(Color(0xFF5A3B22), Offset(3.dp.toPx(), 3.dp.toPx()), Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()), style = Stroke(1.5.dp.toPx()))
-                }.padding(vertical = 10.dp, horizontal = 10.dp),
+                }.padding(vertical = 5.dp, horizontal = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(h.w.t("Лавка ненаписанных книг", "The Unwritten Bookshop"), style = T.Title.copy(fontSize = 22.sp, lineHeight = 26.sp, color = C.lampHi, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, textAlign = TextAlign.Center))
-                Text(h.w.t("здесь продаются книги, которых нет", "books that don't exist, for sale"), style = T.Small.copy(color = C.lampText, fontSize = 12.5.sp))
+                Text(h.w.t("Лавка ненаписанных книг", "The Unwritten Bookshop"), style = T.Title.copy(fontSize = 19.sp, lineHeight = 23.sp, color = C.lampHi, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, textAlign = TextAlign.Center))
+                Text(h.w.t("здесь продаются книги, которых нет", "books that don't exist, for sale"), style = T.Small.copy(color = C.lampText, fontSize = 11.5.sp, lineHeight = 14.sp))
             }
         }
     }
@@ -202,9 +199,11 @@ private fun Sign(h: Home, modifier: Modifier, t: State<Float>) {
 
 /** A shelf: back boards, books standing with an ornament here and there, a paper label on the edge. */
 @Composable
-private fun Shelf(label: String, books: List<Book>, which: Int, h: Home, nav: Nav, t: State<Float>) {
+private fun Shelf(label: String, empty: String, books: List<Book>, which: Int, nav: Nav, t: State<Float>, modifier: Modifier) {
     val decos = Deco.entries
-    Box(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(196.dp)) {
+    BoxWithConstraints(modifier.padding(horizontal = 12.dp).fillMaxWidth().heightIn(min = 120.dp)) {
+        // Books stand up to most of the shelf's height, whatever the phone leaves for it.
+        val room = (maxHeight - 30.dp).coerceIn(80.dp, 190.dp)
         Canvas(Modifier.matchParentSize()) {
             val side = 8.dp.toPx(); val board = 16.dp.toPx()
             drawWood(C.shelfBack, Offset(side, 0f), Size(size.width - 2 * side, size.height - board), 30 + which, vertical = true)
@@ -221,11 +220,11 @@ private fun Shelf(label: String, books: List<Book>, which: Int, h: Home, nav: Na
         ) {
             DecoItem(decos[(which * 2) % decos.size], t)
             if (books.isEmpty()) {
-                Text(h.w.t("полка ждёт", "the shelf is waiting"), style = T.Small.copy(color = C.lampText.copy(alpha = .55f)), modifier = Modifier.padding(horizontal = 24.dp, vertical = 70.dp))
+                Text(empty, style = T.Small.copy(color = C.lampText.copy(alpha = .55f)), modifier = Modifier.padding(horizontal = 24.dp, vertical = 40.dp))
             }
             books.forEachIndexed { i, b ->
                 if (i > 0 && i % 5 == 0) DecoItem(decos[(i / 5 + which * 3 + 1) % decos.size], t)
-                Spine(b, lean = i == books.lastIndex && books.size > 2 && b.id != nav.fresh, fresh = b.id == nav.fresh) { nav.push(Overlay.Book(b.id)) }
+                Spine(b, room, lean = i == books.lastIndex && books.size > 2 && b.id != nav.fresh, fresh = b.id == nav.fresh) { nav.push(Overlay.Book(b.id)) }
             }
             Spacer(Modifier.width(6.dp))
             DecoItem(decos[(which * 2 + 1) % decos.size], t)
@@ -244,10 +243,10 @@ private fun DecoItem(k: Deco, t: State<Float>) {
 
 /** A book standing on the shelf: thicker for more pages, taller or shorter by its title. */
 @Composable
-private fun Spine(b: Book, lean: Boolean, fresh: Boolean, onClick: () -> Unit) {
+private fun Spine(b: Book, room: Dp, lean: Boolean, fresh: Boolean, onClick: () -> Unit) {
     val f = remember(b.title, b.style, b.kind, b.edition) { Face(b) }
     val width: Dp = (10f + b.pages / 22f).coerceIn(16f, 46f).dp
-    val height: Dp = (128 + hash(b.title) % 40).dp
+    val height: Dp = room * (.74f + (hash(b.title) % 26) / 100f)
     val tm = rememberTextMeasurer(cacheSize = 4)
     val drop = remember { Animatable(0f) }
     LaunchedEffect(fresh) { if (fresh) { drop.snapTo(-260f); drop.animateTo(0f, tween(700)) } }
@@ -263,31 +262,7 @@ private fun Spine(b: Book, lean: Boolean, fresh: Boolean, onClick: () -> Unit) {
     ) { drawSpine(f, tm) }
 }
 
-/** A book come back from a reader, nothing yet in its margins. */
-@Composable
-private fun Returned(h: Home, nav: Nav, b: Book) {
-    val c = LocalContext.current.container
-    val w = h.w
-    Row(
-        Modifier.padding(start = 16.dp, end = 16.dp, top = 22.dp).fillMaxWidth().rotate(.6f).shadow(6.dp).paper(C.paperLight).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Cover(Face(b), w, h.imprint, Modifier.width(52.dp))
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(w.t("Вернули книгу", "A book came back"), style = T.BodyB)
-            Text(
-                w.t("«${b.title}» вернулась от читателя. На полях пусто — перечитай её как чужую и оставь пометку.", "“${b.title}” is back from a reader. The margins are empty: read it as someone else's and leave a note."),
-                style = T.Small,
-            )
-            Btn(w.t("Перечитать", "Read it again"), Modifier.padding(top = 8.dp), Kind.GHOST) {
-                c.write { settings.update { it.copy(returnSeen = h.today) } }
-                nav.push(Overlay.Book(b.id, Page.OPEN))
-            }
-        }
-    }
-}
-
-/** The counter: today's customer and their note, the bell, a cup of tea. */
+/** The counter: today's customer and their note, the bell, a cup of tea; a returned book waits on it some days. */
 @Composable
 private fun Counter(h: Home, nav: Nav, t: State<Float>) {
     val c = LocalContext.current.container
@@ -297,7 +272,7 @@ private fun Counter(h: Home, nav: Nav, t: State<Float>) {
     val ring = remember { Animatable(1f) }
     val visit = h.visit
     Box(
-        Modifier.padding(start = 12.dp, end = 12.dp, top = 26.dp).fillMaxWidth().shadow(10.dp, RoundedCornerShape(10.dp, 10.dp, 4.dp, 4.dp))
+        Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp).fillMaxWidth().shadow(10.dp, RoundedCornerShape(10.dp, 10.dp, 4.dp, 4.dp))
             .clip(RoundedCornerShape(10.dp, 10.dp, 4.dp, 4.dp)).drawBehind {
                 drawWood(C.counter, Offset.Zero, size, 77)
                 drawRect(Brush.verticalGradient(listOf(Color(0x1AFFD296), Color.Transparent), 0f, size.height * .4f))
@@ -305,11 +280,11 @@ private fun Counter(h: Home, nav: Nav, t: State<Float>) {
                 drawRect(Color(0xFF5A3A22), Offset(0f, size.height - 6.dp.toPx()), Size(size.width, 6.dp.toPx()))
             },
     ) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 20.dp)) {
+        Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(w.t("За прилавком", "At the counter"), style = T.Italic.copy(color = C.lampHi), modifier = Modifier.weight(1f))
+                Text(w.t("За прилавком", "At the counter"), style = T.Italic.copy(color = C.lampHi, fontSize = 15.sp), modifier = Modifier.weight(1f))
                 Canvas(
-                    Modifier.size(40.dp, 32.dp).clickable {
+                    Modifier.size(38.dp, 30.dp).clickable {
                         if (h.rings >= Rules.RINGS_A_DAY) toast.show(w.t("Больше никого. В лавке тихо — до завтра.", "Nobody else. The shop is quiet till tomorrow."))
                         else {
                             scope.launch { ring.snapTo(0f); ring.animateTo(1f, tween(700)) }
@@ -318,22 +293,38 @@ private fun Counter(h: Home, nav: Nav, t: State<Float>) {
                     },
                 ) { drawBell(ring.value) }
             }
-            Box(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+            Box(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 if (visit != null) {
                     Column(
-                        Modifier.padding(end = 58.dp).rotate(-1.4f).shadow(5.dp).background(Brush.verticalGradient(listOf(Color(0xFFFBF4E2), Color(0xFFF1E6CC))))
-                            .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 12.dp),
+                        Modifier.padding(end = 54.dp).rotate(-1.2f).shadow(5.dp).background(Brush.verticalGradient(listOf(Color(0xFFFBF4E2), Color(0xFFF1E6CC))))
+                            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
                     ) {
-                        Text(visit.request.text(h.ru), style = T.Note)
-                        if (visit.request.rule != Rule.NONE) Text(w.rule(visit.request.rule), style = T.Small.copy(color = C.accent, fontSize = 12.5.sp), modifier = Modifier.padding(top = 6.dp))
-                        Text("— ${w.visitors[visit.visitor]}", style = T.Small.copy(color = C.muted), modifier = Modifier.padding(top = 6.dp))
+                        Text(visit.request.text(h.ru), style = T.Note.copy(fontSize = 22.sp, lineHeight = 23.sp), maxLines = 4)
+                        if (visit.request.rule != Rule.NONE) Text(w.rule(visit.request.rule), style = T.Small.copy(color = C.accent, fontSize = 12.sp, lineHeight = 15.sp), modifier = Modifier.padding(top = 3.dp))
+                        Text("— ${w.visitors[visit.visitor]}", style = T.Small.copy(color = C.muted, fontSize = 12.5.sp, lineHeight = 16.sp), modifier = Modifier.padding(top = 3.dp))
                     }
                     // The pin.
-                    Box(Modifier.padding(start = 110.dp, top = 0.dp).size(13.dp).offset(y = (-5).dp).shadow(2.dp, CircleShape).clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFFFF8B78), C.pin))))
+                    Box(Modifier.padding(start = 110.dp).size(12.dp).offset(y = (-5).dp).shadow(2.dp, CircleShape).clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFFFF8B78), C.pin))))
                 }
-                Canvas(Modifier.align(Alignment.TopEnd).padding(top = 10.dp).size(52.dp, 56.dp)) { drawCup(t.value) }
+                Canvas(Modifier.align(Alignment.TopEnd).padding(top = 6.dp).size(50.dp, 54.dp)) { drawCup(t.value) }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            h.returned?.let { b ->
+                // A book back from a reader lies on the counter with a slip in it.
+                Row(
+                    Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(Color(0x33281A10)).clickable {
+                        c.write { settings.update { it.copy(returnSeen = h.today) } }
+                        nav.push(Overlay.Book(b.id, Page.OPEN))
+                    }.padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Cover(Face(b), w, h.imprint, Modifier.width(22.dp))
+                    Text(
+                        w.t("Вернули «${b.title}». На полях пусто — перечитать ›", "“${b.title}” came back. Empty margins: read it again ›"),
+                        style = T.Small.copy(color = C.lampHi, fontSize = 12.5.sp, lineHeight = 15.sp), maxLines = 2, modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Btn(w.t("Найти на полке", "Find it on the shelf"), Modifier.weight(1.4f), enabled = visit != null) { nav.push(Overlay.Write(visit)) }
                 Btn(w.t("Без заказа", "For nobody"), Modifier.weight(1f), Kind.LIGHT) { nav.push(Overlay.Write(null)) }
             }
@@ -341,37 +332,28 @@ private fun Counter(h: Home, nav: Nav, t: State<Float>) {
     }
 }
 
-/** The bargain box by the door: books nobody throws away. */
+/** The bargain box by the door, one row of slats: books nobody throws away. */
 @Composable
 private fun Crate(h: Home, nav: Nav) {
     val w = h.w
-    Column(
-        Modifier.padding(start = 12.dp, end = 12.dp, top = 24.dp).fillMaxWidth().shadow(8.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)).drawBehind {
-            val slat = 22.dp.toPx(); val gap = 3.dp.toPx()
-            var y = 0f; var i = 0
-            while (y < size.height) {
-                drawWood(Color(0xFF8C6A44), Offset(0f, y), Size(size.width, slat), 90 + i)
-                drawRect(Color(0xFF4A3420), Offset(0f, y + slat), Size(size.width, gap))
-                y += slat + gap; i++
-            }
-            drawRect(Color(0xFF6E5032), style = Stroke(4.dp.toPx()))
-        }.padding(14.dp),
+    Row(
+        Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp).fillMaxWidth().height(40.dp).shadow(6.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)).drawBehind {
+            drawWood(Color(0xFF8C6A44), Offset.Zero, size, 90)
+            drawRect(Color(0xFF4A3420), Offset(0f, size.height / 2 - 1.dp.toPx()), Size(size.width, 2.dp.toPx()))
+            drawRect(Color(0xFF6E5032), style = Stroke(3.dp.toPx()))
+        }.padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            w.t("Уценка · всё по 10 коп.", "Bargain box · 10¢ each"), style = T.Note.copy(fontSize = 21.sp, lineHeight = 22.sp, color = Color(0xFF7A2E1C)),
-            modifier = Modifier.rotate(-2f).shadow(2.dp).background(Color(0xFFF4EAD0)).padding(horizontal = 10.dp, vertical = 1.dp),
+            w.t("Уценка · 10 коп.", "Bargain · 10¢"), style = T.Note.copy(fontSize = 18.sp, lineHeight = 19.sp, color = Color(0xFF7A2E1C)),
+            modifier = Modifier.rotate(-2f).shadow(2.dp).background(Color(0xFFF4EAD0)).padding(horizontal = 8.dp),
         )
-        Spacer(Modifier.height(10.dp))
-        if (h.shop.bin.isEmpty()) {
-            Text(w.t("Ящик пуст. Неудачные книги здесь не выбрасывают — их уценивают.", "Empty. Books that didn't work out aren't thrown away here; they're marked down."),
-                style = T.Small.copy(color = Color(0xFFF1E2C4)))
-        } else {
-            app.unwritten.ui.components.Flow(gap = 4.dp) {
-                for (b in h.shop.bin) {
-                    val (bg, fg) = spineColors(Face(b))
-                    Box(
-                        Modifier.shadow(2.dp).background(bg).clickable { nav.push(Overlay.Book(b.id)) }.padding(horizontal = 8.dp, vertical = 2.dp),
-                    ) { Text(b.title, style = T.Small.copy(color = fg, fontSize = 11.sp, lineHeight = 13.sp), maxLines = 1) }
+        Row(Modifier.weight(1f).padding(start = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (h.shop.bin.isEmpty()) Text(w.t("пусто — здесь книги не выбрасывают", "empty: books aren't thrown away here"), style = T.Small.copy(color = Color(0xFFF1E2C4), fontSize = 12.sp), maxLines = 1)
+            for (b in h.shop.bin) {
+                val (bg, fg) = spineColors(Face(b))
+                Box(Modifier.shadow(2.dp).background(bg).clickable { nav.push(Overlay.Book(b.id)) }.padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Text(b.title, style = T.Small.copy(color = fg, fontSize = 11.sp, lineHeight = 13.sp), maxLines = 1)
                 }
             }
         }

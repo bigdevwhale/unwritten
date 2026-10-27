@@ -53,7 +53,7 @@ class Home(val shop: Shop, val settings: Settings, val w: Words, val now: Long, 
     val imprint: String get() = settings.imprint
 }
 
-enum class Page { COVER, BACK, OPEN, CARD }
+enum class Page { COVER, BACK, OPEN, CARD, REVIEWS }
 
 sealed interface Overlay {
     /** Writing a book: for today's customer, or for nobody. */

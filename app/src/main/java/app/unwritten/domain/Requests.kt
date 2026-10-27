@@ -26,7 +26,7 @@ class Requests(val all: List<Request>) {
         val r = Random(day * 131 + 17)
         val order = open.shuffled(r)
         val req = order[ring % order.size]
-        return Visit(req, Math.floorMod((day * 7 + ring * 3).toInt(), visitors))
+        return Visit(req, Math.floorMod(hash(req.id) + day.toInt(), visitors))
     }
 
     companion object {
